@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8">
+
+		<title>Type Class in Scala</title>
+
+		<meta name="description" content="A presentation on type classes in Scala">
+		<meta name="author" content="Kai Chen">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<link rel="stylesheet" href="css/reveal.min.css">
+		<link rel="stylesheet" href="css/theme/solarized.css" id="theme">
+
+		<!-- For syntax highlighting -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- If the query includes 'print-pdf', include the PDF print sheet -->
+		<script>
+			if( window.location.search.match( /print-pdf/gi ) ) {
+				var link = document.createElement( 'link' );
+				link.rel = 'stylesheet';
+				link.type = 'text/css';
+				link.href = 'css/print/pdf.css';
+				document.getElementsByTagName( 'head' )[0].appendChild( link );
+			}
+		</script>
+
+		<style>
+			div.spacer { margin-top: 100px }
+			.reveal li { line-height: 2em }
+		</style>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+	</head>
+
+	<body>
+
+		<div class="reveal">
+
+			<!-- Any section element inside of this container is displayed as a slide -->
+			<div class="slides">
+				<section>
+					<h1>Type Class ...</h1>
+					<h3>... and the way it's done in Scala</h3>
+					<h3>... and hey, Java has it too</h3>
+					<p style="margin-top:300px">
+						<small>By <a href="mailto:sean.kai.chen@gmail.com">Kai Chen</a> / <a href="mailto:kai@sorrentocorp.com">kai@sorrentocorp.com</a></small>
+					</p>
+				</section>
+
+				<!-- Example of nested vertical slides -->
+				<section id="review-scala-implicits">
+					<section>
+						<h2>Review: Implicits in Scala</h2>
+						<ol>
+							<li>Implicit Conversion</li>
+							<li>Implicit Parameters</li>
+							<li>Keyword <em>implicit</em> can appear before
+								<ul>
+									<li>val</li>
+									<li>def</li>
+									<li>object</li>
+									<li>class</li>
+								</ul>
+						</ol>
+					</section>
+
+					<section>
+						<h2>Right Arrow</h2>
+						<pre class="highlight scala"><code class="fragment">  val map1 = Map("a" -> 1)
+</code><code class="fragment">
+  // needs a Tuple2[String, Int]
+  // also String doesn't have a '->' method
+  val map2: Map[String, Int] = Map.apply(???)
+</code><code class="fragment">
+  // because we have in scala.Predefs
+  @inline implicit def any2ArrowAssoc[A](x: A): ArrowAssoc[A] =
+      new ArrowAssoc(x)
+</code><code class="fragment">
+  // "a" is converted to any2ArrowAssoc[String]("a")
+  val map3: Map[String, Int] = Map.apply(
+      (any2ArrowAssoc[String]("a")).->(1))
+</code><code class="fragment">
+  // which is converted to new ArrowAssoc[String]("a")
+  val map4: Map[String, Int] = Map.apply(
+      (new ArrowAssoc[String]("a")).->(1))
+</code></pre>
+						<h4 class="fragment roll-in grow ">syntax simulation!</h4>
+						<h4 class="fragment roll-in grow ">a.k.a Pimp My Library Pattern</h4>
+					</section>
+
+					<section>
+						<h2>Stream Cons</h2>
+						<pre class="highlight scala"><code class="fragment">  val fib: Stream[Int] = {
+      def loop(h: Int, n: Int): Stream[Int] = h #:: loop(n, h + n)
+      loop(1, 1)
+  }
+</code><code class="fragment">
+  // in Stream.scala
+  implicit def consWrapper[A](stream: => Stream[A]): ConsWrapper[A] =
+      new ConsWrapper[A](stream)
+</code><code class="fragment">
+  // ConsWrapper has a cons operator ...
+  class ConsWrapper[A](tl: => Stream[A]) {
+    def #::(hd: A): Stream[A] = cons(hd, tl)
+    def #:::(prefix: Stream[A]): Stream[A] = prefix append tl
+  }
+</code><code class="fragment">
+  // call-by-name enables us to implement lazy evaluation
+  def loop(h: Int, n: Int): Stream[Int] =
+	    (new ConsWrapper[Int](loop(n, h + n))).#::(h)
+</code><code class="fragment">
+  // which enventually turns our code into
+  def loop(h: Int, n: Int): Stream[Int] = new Cons(h, loop(n, h + n))
+</code><code class="fragment">
+  // where the tail isn't evaluated until invoked
+</code></pre>
+					</section>
+
+					<section>
+						<h2>Ordering</h2>
+						<pre class="highlight scala"><code class="fragment">  val list = List(1,3,5,2,4,6)
+  list.sorted
+</code><code class="fragment">
+  val map = Map("a" -> 1L, "b" -> 2L, "Bill" -> 81000000000l)
+  map.toList.sorted
+</code><code class="fragment">
+  // defined in collection.SeqLike.scala
+  def sorted[B >: A](implicit ord: Ordering[B]): Repr = { ... }
+  // Ordering[T] is an implicit parameter
+</code><code class="fragment">
+  implicit def Tuple2[T1, T2](
+	implicit ord1: Ordering[T1], ord2: Ordering[T2]):
+	    Ordering[(T1, T2)] = ...
+  // Ordering is defined for the tuple only when
+  // Ordering is defined for each element
+</code></pre>
+						<h2 class="fragment roll-in grow">Type Class!</h2>
+					</section>
+
+					<section>
+						<h2>More Tidbits</h2>
+						<ul>
+							<li>Implicit conversion can obscure code</li>
+							<li>Helper method implicitly[T]</li>
+							<li>Implicit object, implicit class</li>
+							<li>Simulate control structure (loan pattern)</li>
+						</ul>
+					</section>
+				</section>
+
+				<section id="haskell-type-class">
+					<section>
+						<h2>What is a Type Class?</h2>
+						<ul>
+							<li>Grew out of design of Haskell in 1988 by Philip Wadler</li>
+							<li>Off-the-shelf solution for arithmetic and equality</li>
+							<li>Ad-hoc polymorphism ≈ overloading</li>
+							<ul>
+								<li>Not parametric polymorphism (e.g. List[T].length)</li>
+								<li>Function defined over several different kinds of types</li>
+								<li>Acting in a different way for each type</li>
+							</ul>
+							<li>Membership is open-ended</li>
+						</ul>
+					</section>
+
+					<section>
+					<h2>Examples in Haskell</h2>
+					<div class="spacer"></div>
+						<pre class="highlight haskell"><code>
+  class Ord a where
+      (≤)   ::    a → a → Bool
+
+  
+  class Show a where
+      show  ::    a → String
+
+  
+  class Read a where
+      read  ::    String → a
+
+	
+  class Eq a where
+      (==)  ::    a -> a -> Bool
+
+	  					</code></pre>
+					</section>
+
+					<section>
+					<h2>So What?</h2>
+					<pre style="width:45%; float:left" class="highlight haskell"><code>
+  class Ord a where
+      (≤)   ::    a → a → Bool
+
+  
+  class Show a where
+      show  ::    a → String
+
+  
+  class Read a where
+      read  ::    String → a
+
+	
+  class Eq a where
+      (==)  ::    a -> a -> Bool
+
+					</code></pre>
+					<pre style="width:55%; float:left" class="highlight java"><code>
+public interface Comparable< T > {
+    public int compareTo(T o);
+}
+
+public String toString () {
+    return getClass().getName() + ...
+}
+
+public static int parseInt (String s) {
+    return parseInt(s, 10);
+}
+
+public boolean equals (Object obj) {
+    return (this == obj);
+}
+					</code></pre>
+					<aside class="notes">
+						Teleprompter: to see it, open the speaker notes window (hit 's' on your keyboard).
+					</aside>
+					</section>
+				</section>
+
+				<section id="type-class-applications">
+					<section>
+					<h2>What is it good for?</h2>
+					<ul>
+						<li>Behavior only where it makes sense</li>
+						<ul>
+							<li>Type-safe equality</li>
+							<li>Recursive and composable equality</li> 
+						</ul>
+						<li>Retroactive extension</li>
+						<ul>
+							<li>JSON or XML Serialization</li>
+							<li>Extend third-party libraries</li>
+						</ul>
+						<li>Multiple behavior implementation, e.g. sorting</li>
+					</ul>
+					</section>
+
+					<section>
+					<h2>Equality</h2>
+					<ul>
+						<li>Apples should only be compared to other Apples</li>
+						<pre class="highlight javascript"><code>if ( apple == orange ) {...}</code></pre>
+						should generate a compiler error
+						<li>Recursive and composable equality function</li>
+						Scala provides this for case classes
+						<li>Can still get simple referential equality if needed</li>
+						Probably via a method call not named '=='
+					</ul>
+					</section>
+
+					<section>
+					<h2>Retroactive extension</h2>
+					<ul>
+						<li>It's like adding methods in the bytecode</li>
+						<li>Retrofit existing types to work in AwesomeMatrix</li>
+						<ul>
+							<li>won't work if AW is designed with IMatrixable</li>
+							<li>easy if it takes a type class MatrixElem[T]</li>
+						</ul>
+						<li>Provide alternative algorithms</li>
+						<ul>
+							<li>java.lang.Comparator.compare(a, b)</li>
+							<li>not possible if all we have is java.lang.Comparable.compareTo(o)</li>
+						</ul>
+					</ul>
+					</section>
+
+					<section>
+					<h2>Tangential</h2>
+					<ul>
+						<li>Algebraic Data Types @ Type-Level</li>
+						<li>Concept-based Generic Programming</li>
+						<li>Not the same as Extension Object</li>
+						<li>Not the same as IAdaptable (in Eclipse)</li>
+						<ul>
+							<li>In IAdaptable, extension is anticipated</li>
+							<li>IAdaptable uses dynamic dispatch</li>
+							<li>But type class method dispatch is always static</li>
+						</ul>
+					</ul>
+					</section>
+				</section>
+
+				<section id="how-scala-provides-type-class">
+					<section>
+					<h2>Scala Mechanics for Type Class</h2>
+					<ol>
+						<li>Define the behaviors in a trait</li>
+						and it must have a parameterized type
+						<li>Provide a companion object</li>
+						it could extend from the trait if it makes sense
+						<li>Package implicits in the companion</li>
+						These are types for which <br/>
+						the required behaviors <br/>
+						have already been implemented
+						<li>Module works with this trait</li>
+					</ol>
+					</section>
+
+					<section>
+						<h4>Scala Example 1</h4>
+					<h2>scala.math.Ordering</h2>
+					<pre class="highlight scala"><code>  trait Ordering[T] extends Comparator[T] with ... Equiv[T] with ... {
+      def compare(x: T, y: T): Int
+
+      override def equiv(x: T, y: T): Boolean = compare(x, y) == 0
+      override def lteq(x: T, y: T): Boolean = compare(x, y) <= 0
+      ...
+
+      class Ops(lhs: T) {
+        def <=(rhs: T) = lteq(lhs, rhs)
+        def max(rhs: T): T = Ordering.this.max(lhs, rhs)
+        ...
+      }
+
+      implicit def mkOrderingOps(lhs: T): Ops = new Ops(lhs)
+  }
+					</code></pre>
+					</section>
+
+					<section>
+						<h4>Example 1 (cont'd)</h4>
+						<h2>Ordering Companion</h2>
+						<pre class="highlight scala"><code>  object Ordering extends LowPriorityOrderingImplicits {
+      def apply[T](implicit ord: Ordering[T]) = ord
+      def by[T, S](f: T => S)(implicit ord: Ordering[S]): Ordering[T] =
+        fromLessThan((x, y) => ord.lt(f(x), f(y)))
+    
+      trait StringOrdering extends Ordering[String] {
+        def compare(x: String, y: String) = x.compareTo(y)
+      }
+      implicit object String extends StringOrdering
+    
+      trait LongOrdering extends Ordering[Long] {
+        def compare(x: Long, y: Long) =
+          if (x < y) -1 else if (x == y) 0 else 1
+      }
+      implicit object Long extends LongOrdering
+  }</code></pre>
+					</section>
+
+					<section>
+						<h4>Scala Example 2</h4>
+						<h2>scalaz.Order, Ordering</h2>
+						<pre class="highlight scala"><code>  trait Order[F] extends Equal[F] { self =>
+      def order(x: F, y: F): Ordering
+  }
+
+  object Ordering extends OrderingInstances with OrderingFunctions {
+    case object LT extends Ordering(-1, "LT") { def complement = GT }
+    case object EQ extends Ordering(0,  "EQ") { def complement = EQ }
+    case object GT extends Ordering(1,  "GT") { def complement = LT }
+  }
+
+  trait Order[F] ... {
+      ...
+      implicit def orderMonoid[A] = new Monoid[Order[A]] { ... }
+  }</code></pre>
+					</section>
+
+					<section>
+						<h4>Example 2 (cont'd)</h4>
+						<h2>Type Class Instances</h2>
+						<pre class="highlight scala"><code>  implicit val intInstance:
+          Monoid[Int] with Enum[Int] with Show[Int] =
+      new Monoid[Int] with Enum[Int] with Show[Int] {
+    override def shows(f: Int) = f.toString
+
+    def append(f1: Int, f2: => Int) = f1 + f2
+    def zero: Int = 0
+
+    def order(x: Int, y: Int) = if (x < y) Ordering.LT
+        else if (x == y) Ordering.EQ else Ordering.GT
+
+    def succ(b: Int) = b + 1
+    def pred(b: Int) = b - 1
+    ...
+    override def min = Some(Int.MinValue)
+    override def max = Some(Int.MaxValue)
+  }</code></pre>
+					</section>
+
+					<section>
+						<h4>Scala Example 3</h4>
+					<h2>Play's Json API Library</h2>
+						<pre class="highlight scala"><code>  sealed trait JsValue
+  case object JsNull extends JsValue
+  class JsUndefined(err: => String) extends JsValue
+  case class JsBoolean(value: Boolean) extends JsValue
+  case class JsNumber(value: BigDecimal) extends JsValue
+  case class JsString(value: String) extends JsValue
+  case class JsArray(value: Seq[JsValue] = List()) ...
+  case class JsObject(fields: Seq[(String, JsValue)]) ...
+
+  object Json {
+    def parse(input: String): JsValue = ...
+
+    def toJson[T](o: T)(implicit tjs: Writes[T]): JsValue = ...
+
+    def fromJson[T](json: JsValue)
+									(implicit fjs: Reads[T]): JsResult[T] = ...
+  }</code></pre>
+					</section>
+
+					<section>
+						<h4>Example 3 (cont'd)</h4>
+					<h2>... and the Type Class is</h2>
+						<pre class="highlight scala"><code>  trait Reads[A] {
+      def reads(json: JsValue): JsResult[A]
+  }
+
+  trait Writes[-A] {
+      def writes(o: A): JsValue
+  }
+
+  implicit object IntReads extends Reads[Int] { ... }
+  implicit val DefaultJodaDateReads = jodaDateReads("yyyy-MM-dd")
+  implicit object JsObjectMonoid extends Monoid[JsObject]
+
+  // macro implemented for case class serialization
+  implicit val myCaseClassFmt = Json.format[myCaseClass]
+  					</code></pre>
+					</section>
+
+					<section>
+					<h2>Type Class Example 4: scalaz.Monoid</h2>
+						<pre class="highlight scala"><code class="fragment">  implicit def orderMonoid[A] = new Monoid[Order[A]] {
+    def zero: Order[A] = new Order[A] {
+      def order(x: A, y: A): Ordering = Monoid[Ordering].zero
+    }
+    def append(f1: Order[A], f2: => Order[A]): Order[A] =
+        new Order[A] {
+        def order(x: A, y: A): Ordering =
+        Semigroup[Ordering].append(f1.order(x, y), f2.order(x, y))
+    }
+  }
+</code><code class="fragment">
+  final class SemigroupOps[F](val self: F)
+    (implicit val F: Semigroup[F]) extends Ops[F] {
+    final def |+|(other: => F): F = F.append(self, other) // ...
+  }</code></pre>
+						
+					</section>
+				</section>
+
+				<section>
+					<h2>Conclusion</h2>
+					<ul>
+						<li>For Library Developers</li>
+						<ul>
+							<li>Probably superior to using just an interface</li>
+							<li>Fits perfectly in composable and chainable processing</li>
+							Monadic systems, servlet filtering
+						</ul>
+						<li>For Library Users</li>
+						<ul>
+							<li>Systems designed with type class are MUCH easier</li>
+							if the provided type class instances are sufficient
+							<li>May need to provide one's own type class instance</li>
+							Good to know because you will end up debugging it
+						</ul>
+					</ul>
+				</section>
+			</div>
+
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.min.js"></script>
+
+		<script>
+
+			// Full list of configuration options available here:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+			slideNumber: true,
+				history: true,
+				center: true,
+
+				theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+				transition: Reveal.getQueryHash().transition || 'cube', // default/cube/page/concave/zoom/linear/fade/none
+
+				// Parallax scrolling
+				// parallaxBackgroundImage: 'https://s3.amazonaws.com/hakim-static/reveal-js/reveal-parallax-1.jpg',
+				// parallaxBackgroundSize: '2100px 900px',
+
+				// Optional libraries used to extend on reveal.js
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() {
+			[].forEach.call( document.querySelectorAll( '.highlight' ), function( v, i) {
+      hljs.highlightBlock(v);
+			});
+//			hljs.initHighlightingOnLoad();
+			} },
+					{ src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+					{ src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+				]
+			});
+
+		</script>
+
+	</body>
+</html>
