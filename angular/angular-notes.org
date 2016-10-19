@@ -1,0 +1,379 @@
+* Set up
+** neo4j start
+** sbt and run in web sub-project
+** grunt serve from revealjs
+** start browser and slide
+** nodejs repl
+	 open top-level Angular js files, ng/locale.js, and auto/injector.js
+	 eval preload-repl.el to load in nodejs-repl
+* Overview of AngularJS (5 slides)
+	Hi, thanks, every one, for coming to the talk.  My name is Kai, and
+	I'm an Angular-holic.  It's my pleasure to give this presentation.
+	Before we start, let me ask a few questions to get an idea of the
+	audience.
+
+	- How many of you are currently working on a project using Angular?
+	- How many of you have used jQuery?
+	- How many of you have used prototype, the library?
+	- Coded ajax and chained asynchronous update by hand?
+
+	The point of the last 2 questions is to try to figure out your age
+	... in javascript years.
+
+	OK Looks like
+	1) we got mostly veteran coders here, we can go relatively fast
+     tonight and feel free to stop me with any questions you have
+	2) we've got an even mix of seasoned programmers and padwans; we
+     will try to answer as many questions as we can, but we also need
+     to move along at a reasonable speed to keep the audience yawning
+     at a non-epidemic rate.
+	3) the beginner's got a big majority, so ... we probably have to
+     skip one of the sections, but I do want to make this talk a bit
+     of a challenge ... not because I'm into S&M and stuff, but
+     because I think it's good to try to get a little uncomfortable
+     and to try understand some stuff that one does not run into in
+     everyday work.  In the long run, it's going to be good for you.
+
+	So tonight's talk will have 3 main parts.  We will start with a
+	lead-in introduction to Angular, and some gossip.  Then we will get
+	to the first part, which is Angular's implementation of Dependency
+	Injection.  In the second part we will look at an example directive
+	implementation in the form of UI-Boostrap's Typeahead component.
+	And lastly we will take a look at protractor end-to-end test
+	framework, a running example, and we can either look at the test
+	code or the protractor internals, depending on interest.
+** Angular features
+	 Angular's got a lot of features, most of which are taken from other
+	 trail-blazing frameworks.  And the ones I listed here are not
+	 exhaustive but what I think are the important problems that should
+	 be solved by a client-side framework library.
+*** templating on the client-side
+		Client-side templating is an obvious one, because it moves the
+		rendering logic closer to where it happens -- on the client.
+		Before jQuery and ExtJS introduced templates in javascript,
+		everybody was doing it on the server side, which is a conceptual
+		misfit.  And that's really where a lot of the pain comes from.
+		Angular has really perfected that by handling it through compile,
+		interpolate, ngBindTemplate, and other directives.
+*** custom element tags, aka directives
+		Directives, or custom element tags, is also an old concept.  It
+		makes UI composition possible.  But again the way it was done
+		before Angular was either on the server side, or compiled into
+		html as part of the build.  These frameworks are still in use by
+		legacy applications; but it's hard to find people these days that
+		are familiar with them.
+*** two-way data-binding
+		Two-way binding is essential, not just for web frameworks, it's
+		essential for just about any UI frameworks.  Again, this is not
+		something that Angular invented.  Knockout, which I've never
+		personally used, is one, along with others.  The way Angular
+		provides this feature was a bit controversial.  It uses dirty
+		check instead of the traditional observer-listener pattern.  The
+		advantage there is that it is simple and always correct, whereas a
+		system with a lot of observer-listener can become
+		non-deterministic, hence fragile.  There were also performance
+		concerns with the dirty-check approach, but the controversy may
+		become a non-issue with Object.observe in ECMA 6.
+*** scope and dependency injection
+		Once again, it's an old concept, thought-over, debated, and pretty
+		much solved several times over on both Java and .NET platforms.
+		But I think it's something complete new to the world of
+		Javascript.  RequireJS and AMD does a decent job modularizing
+		javascript apps, but they are incremental steps taken to ease the
+		namespace pain, instead of a whole solution aimed at a
+		component-oriented architecture.  This is the true linchpin that
+		holds together everything that Angular does.  It provides the
+		fundamental mechanism to write de-coupled and testable components.
+		And that's the first part that we are going to study tonight.
+** History | Gossip
+	 The publicity of Angular came out of the Google Feedback project.
+	 I've never used Google Feedback; I think it's a bug-report
+	 submission tool.  Google has several frameworks for Javascript, the
+	 most famous being Closure.  GWT is another one familiar to people
+	 that write the backend in Java.  I don't know what they started out
+	 with, but any way, they had a team build it, and about 6 months
+	 into it, they had a code base of about 17 thousand lines of
+	 javascript, with the end nowhere in sight.  It's gotten to a
+	 familiar point where stuff is harder to add without breaking
+	 existing functionalities.  There was a lot of pain, people were
+	 getting angry, and as we all know, anger leads to hate, and hate
+	 leads to suffering.
+
+	 So at this point, one of the team member, Misko, said that he could
+	 rewrite the whole codebase in 2 weeks, using the open-source
+	 framework that he wrote before being acquired by Google.  He was
+	 allowed to hang himself.  And it turns out he did overestimate, he
+	 did underestimate the time it would take, by 50%.  He finished it
+	 in 3 weeks instead of 2, and after he was done, the code base came
+	 in around 15 hundred lines.
+
+	 Now as war stories go, this one is pretty good.  I don't have any
+	 first-hand opportunities to verify that all this is true.  Also,
+	 keep in mind that, whenever you write something the second time,
+	 you will always finish it much faster than the first time around
+	 because, a) you are much more familiar with the domain logic, and
+	 b) you've already solved a lot of the mapping problems.  But still,
+	 an order of magnitude improvement in both time and code size is
+	 hard to achieve, even if the numbers get inflated a little in the
+	 grapevine.  It's a good testament of how much pain Angular took
+	 away from regular web development.
+** Javascript basics 1
+	 OK, so before we dive into Angular code, we're going to do a little
+	 bit warm-up, like some stretching before a run.  Most of the stuff
+	 should be very familiar to everybody here.
+*** functions as fundamental way of encapsulation
+		Pretty straight forward example here: a simple 2-argument function
+
+		Here's one of the warts of Javascript, all arguments are optional,
+		and there's no type checking.
+
+		I use the toString() method because NaN does not equal to itself.
+		And you should usually use the isNaN() method to test.
+*** functions can be assigned and returned as value
+		Functions are first-class values.
+*** functions can be anonymous
+		Typically when a function is used only once, it doesn't need to be named.
+*** functions are objects
+		Here things get a little bit more interesting, when you
+		dynamically add properties to the function object.
+*** functions source code can be accessed at runtime
+		This, as we will see, is key to Angular's ability to annotate
+		functions that use implicit dependency injection.
+** Javascript basics 2
+*** how to invoke function
+		Functions can be invoked either directly or by call|apply. In both
+		apply and call, the first argument is usually function object
+		itself, and that object will be bound to the special variable
+		named 'this'. The difference between call and apply is that call
+		sends all the arguments explicitly whereas apply sends a single
+		arry containing all the arguments.
+*** call and apply required in functional programming style
+		So what's the point of apply or call, when we can just easily
+		invoke the function using its direct form?  Turns out that in
+		order to do the basic stuff of functional programming, like
+		functional composition, intercept (monkey-patch), currying, we
+		need a way to invoke a function without explicitly naming all the
+		arguments.  And apply provides that mechanism.
+*** prototype chaining
+		Prototype allows an object to inherit or shadow another object's
+		properties, which can inlude methods.  An object can also be
+		created without any prototype.
+*** simulate class-based inheritance using prototype
+		You can set up class-like inheritance using prototype; it's still
+		used in places where it makes sense to have an object-oriented
+		approach.  But it's a bit tedious.  Functions and higher-order
+		functions are easier to work with.
+** Tidbits
+*** truth-y
+*** equality test
+*** strict mode
+*** Function.prototype.bind()
+*** Object.defineProperties()
+*** extending an object to achieve mixin
+* Dependency Injection (5 slides, 2 REPL, 4 editor)
+** Overview
+*** Typical angular app setup
+		A typical angular application is composed of modules.  There is a
+		top-level module, which is not show here, that declares all its
+		sub-systems.  Then each sub-system, also defined as modules,
+		further defines its components in terms of controllers, services,
+		directives and filters, which primarily deal with views, along
+		with the angular components that it can leverage.
+*** What's it good for
+		modular design and component-based testing
+		no need to manually trace component instantiation sequence
+		achieves 'whole < sum(part)'		
+** Module definition
+*** named object with builder methods
+		Modules are objects with a name, a list of named dependencies, and
+		convenience factory methods (which is actually just a description
+		of how the factory methods will be invoked).
+*** REPL
+**** setup
+		 show AngularFiles.js
+		 eval repl-module.js to create module
+**** inspect returned module object
+		 call the factory methods and inspect _invokeQueue
+*** test/loaderSpec.js
+		Sorry I haven't done my homework and set up Emacs to run
+		individual Jasmine Specs.  Didn't find anything on the web, so I'd
+		need to write some lisp to hook it up.  I will do that someday, I
+		hope.  For now, we will just have to read through the code and
+		trust that it works.
+
+		Specs of interest:
+
+		- 'should record calls'
+
+		  so we see that when we call module.controller(...)  it doesn't
+      create the controller right there, instead it's just keeping
+      track of what it's supposed to do.  A lot of these will end up
+      calling methods on a '$provide' service.  And we also see
+      controller gets turned into a 'register' call on the
+      '$controllerProvider', and a directive is actually a 'directive'
+      call on the '$compileProvider' service.
+
+		- 'should complain name "hasOwnProperty"'
+
+		  We will see why this would cause a problem.  But the hint is
+      that Object uses 'hasOwnProperty' to check whether a property
+      belongs to itself or is derived from the prototype chain.
+*** src/loader.js
+		- exports a single function setupModuleLoader(window)
+		  which returns the angular.module function
+		- helper function ensure is a javascript idiom to check for null
+		- all modules in a look-up table, by name, and the code uses the
+      look-up table's 'hasOwnProperty()' to check if it's there and
+      not in the prototype chain
+		- all builder methods are returned from invokeLater(...)
+		- invokeLater returns a function that pushes what needs to happen
+      into the _invokeQueue, returning the moduleInstance itself
+      allows daisy chain.
+		- in invokeLater, the arguments are bound to the returned function
+** Injector
+	 Now that we've seen what a module is, we're moving on to the
+	 central piece of the module container, which has 2 main
+	 responsibilities: component instantiation and dependency injection
+*** Component instantiation
+		needs to happen in the right order, implies detection of circular dependencies
+		each component should be instantiated only once
+		the dependencies should be passed where they are needed
+*** REPL
+		visit rel-inject.js
+**** call annotate on function
+		 function acquires a new field '$inject' implicit dependency
+		 declaration in the function arguments (treated like a constructor)
+
+		 the better way is to explicitly declare, either in array-form or
+		 via the '$inject' property on the function
+**** create a module with dependencies
+		 - a sequence component that returns an identifier-like sequence
+		 - depends on a letter generator, and a number generator
+		 - injector can be used to return the named component
+*** test/auto/injectorSpec.js
+		- 'should resolve dependency graph'
+		- 'should throw error on circular dependency'
+*** src/auto/injector.js
+		- annotate(..)
+			- $inject annotation is first-freeze
+			- strip comment with regex
+			- match arguments push argument names in the annotation array
+			- paried underscores flanking the argument names are removed also
+		- createInjector(...)
+			- the returned object, instanceInjector
+			- providerCache
+				starts with a single object '$provide' with convenience methods
+			- instanceCache
+				starts empty
+			- loadModules(...)
+				- here the _invokeQueue of the module is run
+				- as the _invokeQueue is executed, the providerCache is filled
+          with provider objects
+					remember that these are objects with a $get method
+				- ignore configBlocks, runBlocks, for now
+				- point of loadModules is to line up the names
+					and we still haven't instantiated any objects yet
+			- createInternalInjector(...)
+				- returned object
+				- instantiate(...) -> invoke(...)
+				- in invoke(...)
+					- get or create annotation on the function
+					- build a new argument list by looking up the services
+						--> injecting dependencies
+					- getService(...) uses factory to instantiate
+						- this is finally where provider.$get gets called to
+              instantiate the services
+*** AngularPublic.js
+		ngLocale is loaded first, then ng module is defined all other
+		angular modules are organized in ng
+*** Angular.js
+		finally in bootstrap(...) ng and $rootElement are loaded and an
+		injector is created to kick off the compile cycle
+** Providers, Factories, Services
+** Angular providers
+* UI Bootstrap Typeahead (5 slides, 2 editor)
+	Do we need to have a quick demo of what typeahead does?
+** Overview
+	 visit typeahead.js, fold all functions
+	 show dependencies and components
+** BindHtml Directive
+	 visit bindHtml.js
+	 - purpose is to be able to inject html directly into the DOM
+	 - this is because there used to be an ng-bind-html-unsafe
+	 - when angular removed that, this shim was put in place
+*** Angular $sanitize protects against user-controlled content
+*** Strict Contextual Escape service
+** Position Directive
+	 visit position.js
+	 Provides equivalent of jQuery's position and offset fn
+** Typeahead Parser
+	 back to typeahead.js
+*** Syntax
+		<expression> [as label] for <varBinding> in <valueArray expression>
+		- different parts are easily plucked out by a RegExp
+		- two types of evaluation
+*** Angular's $parse
+		- a hand-written top-down recursive descent parser
+		  a very good example to study, though it builds functions in place of an AST
+		  visit parse.js if there is interest
+		- only the itemName is a string, everything is a function returned by $parse
+** Model and Control
+	 The typeahead widget needs to have a user input area, which is the
+	 containing element (since it is an attribute directive).  The
+	 widget also needs access the user's partial input and to be able to
+	 suggest choices based on that input and, after the user makes a
+	 selection, update the model with the value.
+*** Input Area
+		back to typeaahead.js
+		directive('typeahead') is used as an attribute
+		the containing element takes care of that
+*** Access to partial input
+		- declare 'require ngModel'
+		  - creates its own child scope from the original scope
+				- in resetMatches: scope keeps matches array, activeIdx
+*** Provide asynchronous suggestions
+		- getMatchesAsync(inputValue)
+		- uses $q service
+		- source array expression can retrieve the list remotely
+*** Respond to user selection
+	  - gains access to NgModelController.$parsers
+			- modelCtrl.$parsers.unshift(function(...)); uses $timeout and a
+        timeoutPromise with 2 functions to manage asynchronous update
+		- skip formatter part for now
+		- scope.select(activeIdx) makes the callback to update model
+			the callback isn't done via the scope declaration in directives
+			but hooked up by hand
+		- keybindings
+** View
+*** Directives
+		- popupEl introduces the typeahead-popup directive
+		- directive definition for popup
+		- switch to typeahead-code workgroup
+		- popup uses a dropdown menu list to display the suggestions
+*** Filter
+		- for each list item, another directive, typeahead-match, is
+      used to highlight the query portion of the matched items
+* Protractor (5 slides, 2 demo, 2 editor)
+** Overview
+*** End-to-End Test Framework
+*** Built on Selenium/WebDriverJS
+*** Supercedes ngScenario
+*** Runs with Tests written in Jasmine, Mocha+Chai, Cucumber 
+** Example
+*** Demo application
+		create 2 models, 1 instance each, delete all
+*** Run e2e tests
+** How it Works
+*** Architecture
+		protractor/webdriver/node -> selenium server -> browser
+		may skip the selenium server if testing directly
+*** All Async and All Promises
+** What Protractor Provides
+*** Locators
+*** Test framework adaptations
+		make expect(...) work with WebDriverJS promises
+** Writing Tests
+*** Page Objects
+		defined in model-pages.js to encapsulates ui details into user operations
+*** Spec Files
+		describe behavior and expectation

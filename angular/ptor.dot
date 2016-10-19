@@ -1,0 +1,28 @@
+digraph ProtractorArch {
+	rankdir=LR
+
+	a [shape=plaintext, label=<
+		 <table border="1" cellborder="0" bgcolor="seashell">
+		 <th><td>NodeJS</td></th>
+		 <tr><td><table border="1" cellborder="0" bgcolor="aliceblue">
+		 <th><td>Protractor</td></th>
+		 <tr><td><table border="1" cellborder="0" bgcolor="khaki">
+		 <th><td port="protractor">WebDriverJS</td></th>
+		 </table></td></tr>
+		 </table></td></tr>
+		 </table>
+		 >];
+
+	d [shape=box, label="Selenium Server", style=filled, fillcolor=khaki];
+
+	e [shape=plaintext, label=<
+		 <table border="1" cellborder="0" bgcolor="lavender">
+		 <th><td>Browser</td></th>
+		 <tr><td><table border="1" cellborder="0" bgcolor="khaki">
+		 <th><td port="browser">WebDriver</td></th>
+		 </table></td></tr>
+		 </table>
+		 >];
+
+	a:protractor -> d -> e:browser
+}
